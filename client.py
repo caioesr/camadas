@@ -11,6 +11,7 @@ import numpy as np
 from tkinter import filedialog, Tk
 import time
 from utils import *
+import sys
 
 serialName = "COM3"
 
@@ -20,6 +21,28 @@ def main(filename):
         com1 = enlace(serialName)
         com1.enable()
         print('Comunication with port created!\n')
+
+        print('Trying to handshake server...')
+        pckg = package(index=0,msg=b'\xff',next=None)
+        com1.sendData(np.asarray(pckg))
+        while com1.tx.getStatus() != len(pckg):
+            pass
+        print('Sending handshake msg...')
+        start = time.time()
+
+        while (com1.rx.getBufferLen() < 15):
+            if(time.time() - start >= 5):
+                user_ans = input('Server not responding, keep trying handshake? [y/n]\n>>>> ')
+                if(user_ans == 'n'):
+                    com1.disable()
+                    return
+                else:
+                    print('Retrying...')
+                    start = time.time()
+
+        ans, nAns = com1.getData(15)
+
+        print('Handshaked!\n')
 
         txBuffer = open(imgR,'rb').read()
         msgs = [txBuffer[i:i+128] for i in range(0,len(txBuffer),128)]
@@ -39,6 +62,7 @@ def main(filename):
             print('Starting file transference\n')
         else:
             print('Something goes wrong, wait one minute and try again\n')
+            com1.disable()
             return
 
         index = 1
@@ -63,7 +87,6 @@ def main(filename):
             else:
                 print('Something goes wrong, trying again...')
 
-        print('\nTransmission conclude!')
         com1.disable()
         
     except Exception as erro:
@@ -78,3 +101,4 @@ if __name__ == "__main__":
     dirname = filedialog.askopenfile(title='Selecione um arquivo',mode='r')
     filename = dirname.name
     main(filename)
+    print('\nTransmission conclude!')

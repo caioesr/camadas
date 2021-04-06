@@ -1,32 +1,37 @@
-def package(index,msg,next,eop=b'\xff',eop_size=4):
+def package(type_pckg,total,index,msg,len_msg=0,id_sensor=b'\xff',id_server=b'\x00'):
 
-    if(next is None):
-        header = index.to_bytes(6,'big') + len(msg).to_bytes(1,'big') + eop + eop_size.to_bytes(1,'big') + b'\x00'
+    header = type_pckg.to_bytes(1,'big') + id_sensor + id_server + total.to_bytes(1,'big') + index.to_bytes(1,'big')
+
+    if (type_pckg == 3):
+        if (len(msg) > 0):
+            len_msg = len(msg)
+        header += len_msg.to_bytes(1,'big')
     else:
-        header = index.to_bytes(6,'big') + len(msg).to_bytes(1,'big') + eop + eop_size.to_bytes(1,'big') + len(next).to_bytes(1,'big')
-    
-    pckg = header + msg + eop*eop_size
+        header += index.to_bytes(1,'big')
 
-    return pckg
+    header += index.to_bytes(1,'big') + index.to_bytes(1,'big') + b'\xff\xaa'
+
+    if (len(msg) > 0):
+        return header + msg + b'\xff\xaa\xff\xaa'
+
+    return header
 
 def readPackage(package):
 
-    header = package[:10]
-    index = int.from_bytes(header[:6], 'big')
-    try:
-        size_msg = int.from_bytes(header[6], 'big')
-    except:
-        size_msg = header[6]
-    eop_byte = header[7]
-    eop_size = header[8]
-    size_next_msg = header[9]
+    type_pckg = package[0]
+    total_pckgs = package[3]
+    index = package[4]
+    len_msg = package[5]
 
-    eop = package[10+size_msg:]
-    msg = package[10:10+size_msg]
+    if (type_pckg == 3 and len(package) > 10):
+        msg = package[:-4]
+        eop = package[-1:-5:-1]
+        if (len(eop) == 4 and eop == b'\xaa\xff\xaa\xff'):
+            eop_check = True
+        else:
+            eop_check = False
+
+        return type_pckg, total_pckgs, index, msg, len_msg, eop_check
     
-    if(len(eop) == eop_size and eop == eop_byte.to_bytes(1,'big')*eop_size):
-        eop_check = True
     else:
-        eop_check = False
-
-    return index, msg, size_next_msg, eop_check
+        return type_pckg, total_pckgs, index, len_msg
